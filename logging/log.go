@@ -29,7 +29,7 @@ func Init(
 	syslogTag string) {
 
 	sysloger, err := syslog.New(syslog.LOG_NOTICE, syslogTag)
-	if err != nil {
+	if err == nil {
 		infoHandle = io.MultiWriter(sysloger, infoHandle)
 		warningHandle = io.MultiWriter(sysloger, warningHandle)
 		errorHandle = io.MultiWriter(sysloger, errorHandle)
