@@ -31,6 +31,7 @@ func main() {
 	}
 	defer file.Close()
 
+	logging.Init(logging.Trace, os.Stdout)
 	logging.Init(logging.Debug, os.Stdout)
 	logging.InitWithSyslog(logging.Info, os.Stdout, "asterisk-monitor")
 	logging.InitWithSyslog(logging.Warning, os.Stdout, "asterisk-monitor")
@@ -91,19 +92,24 @@ func main() {
 			switch sig {
 			case os.Interrupt, syscall.SIGTERM:
 				{
+					logging.Trace.Printf("stop()")
 					stop()
+					logging.Trace.Printf("Closing")
 					amiClient.Close()
+					logging.Trace.Printf("Closed")
 				}
 			case syscall.SIGUSR1:
 				{
 					logging.Debug.Println("Pending calls:", statsdami.GetPendingCallsCount())
 					logging.Debug.Println("Pending responses:", amiClient.GetPendingActionsCount())
+					logging.Debug.Println("Gauges:", statsdami.GetGaugeCount())
 				}
 			case syscall.SIGUSR2:
 				{
 					logging.Dump.Println("-----------")
 					ami.Dump(amiClient, logging.Dump)
 					statsdami.Dump(logging.Dump)
+					statsdami.DumpGauges(logging.Dump)
 				}
 			}
 		}
