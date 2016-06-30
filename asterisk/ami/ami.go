@@ -70,6 +70,7 @@ type Client struct {
 	NetError chan error
 
 	mutexAsyncAction *sync.RWMutex
+	mutexObject      *sync.RWMutex
 
 	// network wait for a new connection
 	waitNewConnection chan struct{}
@@ -99,6 +100,7 @@ func New(address string, user string, password string, options ...func(*Client))
 		username:          user,
 		password:          password,
 		mutexAsyncAction:  new(sync.RWMutex),
+		mutexObject:       new(sync.RWMutex),
 		waitNewConnection: make(chan struct{}),
 		responses:         make(map[string]chan *Response),
 		Events:            nil,
@@ -118,15 +120,15 @@ func New(address string, user string, password string, options ...func(*Client))
 
 // SetEventChannel set a channel to send Event received
 func (client *Client) SetEventChannel(channel chan *Event) {
-	client.mutexAsyncAction.Lock()
-	defer client.mutexAsyncAction.Unlock()
+	client.mutexObject.Lock()
+	defer client.mutexObject.Unlock()
 	client.Events = channel
 }
 
 // RegisterDefaultHandler register a default handler for all events
 func (client *Client) RegisterDefaultHandler(f eventHandlerFunc) error {
-	client.mutexAsyncAction.Lock()
-	defer client.mutexAsyncAction.Unlock()
+	client.mutexObject.Lock()
+	defer client.mutexObject.Unlock()
 	if client.defaultHandler != nil {
 		return errors.New("DefaultHandler already registered")
 	}
@@ -136,8 +138,8 @@ func (client *Client) RegisterDefaultHandler(f eventHandlerFunc) error {
 
 // UnregisterDefaultHandler unregister the default handler if exists
 func (client *Client) UnregisterDefaultHandler(f eventHandlerFunc) error {
-	client.mutexAsyncAction.Lock()
-	defer client.mutexAsyncAction.Unlock()
+	client.mutexObject.Lock()
+	defer client.mutexObject.Unlock()
 	if client.defaultHandler == nil {
 		return errors.New("DefaultHandler not registered")
 	}
@@ -147,8 +149,8 @@ func (client *Client) UnregisterDefaultHandler(f eventHandlerFunc) error {
 
 // RegisterHandler register an handler for a specific event
 func (client *Client) RegisterHandler(eventID string, f eventHandlerFunc) error {
-	client.mutexAsyncAction.Lock()
-	defer client.mutexAsyncAction.Unlock()
+	client.mutexObject.Lock()
+	defer client.mutexObject.Unlock()
 	if client.handlers[eventID] != nil {
 		return errors.New("Handler already registered")
 	}
@@ -158,8 +160,8 @@ func (client *Client) RegisterHandler(eventID string, f eventHandlerFunc) error 
 
 // UnregisterHandler unregister an handler for a specific event
 func (client *Client) UnregisterHandler(eventID string) error {
-	client.mutexAsyncAction.Lock()
-	defer client.mutexAsyncAction.Unlock()
+	client.mutexObject.Lock()
+	defer client.mutexObject.Unlock()
 	if client.handlers[eventID] == nil {
 		return errors.New("Handler not registered")
 	}
@@ -201,9 +203,9 @@ func (client *Client) Connect(parameters map[string]string) (err error) {
 // KeepAlive periodicaly send "Ping" action to AMI server
 func (client *Client) KeepAlive(interval time.Duration) {
 	go func(client *Client, interval time.Duration) {
-		client.mutexAsyncAction.Lock()
+		client.mutexObject.Lock()
 		client.keepAliveExitChan = make(chan bool, 1)
-		client.mutexAsyncAction.Unlock()
+		client.mutexObject.Unlock()
 
 		for {
 			select {
@@ -222,8 +224,8 @@ func (client *Client) KeepAlive(interval time.Duration) {
 
 // StopKeepAlive StopKeepAlive gorouting
 func (client *Client) StopKeepAlive() {
-	client.mutexAsyncAction.Lock()
-	defer client.mutexAsyncAction.Unlock()
+	client.mutexObject.Lock()
+	defer client.mutexObject.Unlock()
 	if client.keepAliveExitChan != nil {
 		client.keepAliveExitChan <- true
 	}
@@ -295,8 +297,8 @@ func (client *Client) Run() (err error) {
 // massive actions,
 func (client *Client) AsyncAction(action string, params Params) (<-chan *Response, error) {
 	var output string
-	client.mutexAsyncAction.Lock()
-	defer client.mutexAsyncAction.Unlock()
+	client.mutexObject.Lock()
+	defer client.mutexObject.Unlock()
 
 	output = fmt.Sprintf("Action: %s\r\n", strings.TrimSpace(action))
 	if params == nil {
@@ -333,6 +335,8 @@ func (client *Client) Action(action string, params Params) (*Response, error) {
 // Close the connection to AMI
 func (client *Client) Close() {
 	client.Action("Logoff", nil)
+	client.mutexObject.Lock()
+	defer client.mutexObject.Unlock()
 	(client.connRaw).Close()
 }
 
