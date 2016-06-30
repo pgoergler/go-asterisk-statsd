@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/textproto"
 	"strings"
@@ -91,6 +92,15 @@ func UseTLSConfig(config *tls.Config) func(*Client) {
 		c.tlsConfig = config
 		c.useTLS = true
 	}
+}
+
+// Dump memory objects
+func Dump(client *Client, logger *log.Logger) {
+	logger.Println(len(client.responses), " responses")
+	for k := range client.responses {
+		logger.Println("response id:" + k)
+	}
+
 }
 
 // New create a Client
@@ -330,6 +340,14 @@ func (client *Client) Action(action string, params Params) (*Response, error) {
 	response := <-resp
 
 	return response, nil
+}
+
+// GetPendingActionsCount return nb responses unproceed
+func (client *Client) GetPendingActionsCount() int {
+	client.mutexObject.Lock()
+	defer client.mutexObject.Unlock()
+
+	return len(client.responses)
 }
 
 // Close the connection to AMI

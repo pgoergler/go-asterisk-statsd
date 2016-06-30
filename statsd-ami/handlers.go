@@ -5,6 +5,7 @@ import (
 	"github.com/pgoergler/go-asterisk-statsd/asterisk/ami"
 	"github.com/pgoergler/go-asterisk-statsd/logging"
 
+	"log"
 	"sync"
 
 	"github.com/quipo/statsd"
@@ -14,6 +15,23 @@ type statsdEventHandler func(*statsd.StatsdClient, *asterisk.Call, *ami.Event, m
 
 var callsMutex = new(sync.RWMutex)
 var calls = make(map[string]*asterisk.Call)
+
+// GetPendingCallsCount return number of pending calls (not deleted)
+func GetPendingCallsCount() int {
+	callsMutex.Lock()
+	defer callsMutex.Unlock()
+	return len(calls)
+}
+
+// Dump pending calls
+func Dump(logger *log.Logger) {
+	callsMutex.Lock()
+	defer callsMutex.Unlock()
+	logger.Println(len(calls), " pending calls")
+	for k, v := range calls {
+		logger.Printf("%s => %v\n", k, v)
+	}
+}
 
 func watch(call *asterisk.Call) {
 	callsMutex.Lock()

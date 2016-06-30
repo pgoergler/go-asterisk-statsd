@@ -1,11 +1,14 @@
 package main
 
 import (
-	"io/ioutil"
+	"log"
 	"os"
 
 	"flag"
+	"os/signal"
 	"regexp"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/pgoergler/go-asterisk-statsd/asterisk/ami"
@@ -17,9 +20,22 @@ import (
 
 type eventHandler func(*statsd.StatsdClient, *ami.Event, map[string]string)
 
+var stopMutex = new(sync.RWMutex)
+var stopValue = false
+
 func main() {
 
-	logging.Init(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr, "asterisk-monitor")
+	file, err := os.OpenFile("dump.txt", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	if err != nil {
+		log.Fatalln("Failed to open dump file:", err)
+	}
+	defer file.Close()
+
+	logging.Init(logging.Debug, os.Stdout)
+	logging.InitWithSyslog(logging.Info, os.Stdout, "asterisk-monitor")
+	logging.InitWithSyslog(logging.Warning, os.Stdout, "asterisk-monitor")
+	logging.InitWithSyslog(logging.Error, os.Stdout, "asterisk-monitor")
+	logging.Init(logging.Dump, file)
 
 	asteriskInfo := flag.String("asterisk", "", "asterisk connection info. format: user:password@host:port")
 	statsdInfo := flag.String("statsd", "", "statsd connection info. format: host:port/prefix")
@@ -58,33 +74,70 @@ func main() {
 	asteriskPassword := matches[0][2]
 	asteriskAddress := matches[0][3]
 
-	ami := ami.New(asteriskAddress, asteriskUsername, asteriskPassword)
+	amiClient := ami.New(asteriskAddress, asteriskUsername, asteriskPassword)
 
-	//ami.RegisterDefaultHandler(eventDefaultHandler)
+	amiClient.RegisterHandler("Newchannel", statsdami.NewHandler(statsdclient, statsdami.EventNewChannelHandler))
+	amiClient.RegisterHandler("Newstate", statsdami.NewHandler(statsdclient, statsdami.EventNewStateHandler))
+	amiClient.RegisterHandler("SoftHangupRequest", statsdami.NewHandler(statsdclient, statsdami.EventSoftHangupHandler))
+	amiClient.RegisterHandler("Hangup", statsdami.NewHandler(statsdclient, statsdami.EventHangupHandler))
 
-	ami.RegisterHandler("Newchannel", statsdami.NewHandler(statsdclient, statsdami.EventNewChannelHandler))
-	ami.RegisterHandler("Newstate", statsdami.NewHandler(statsdclient, statsdami.EventNewStateHandler))
-	ami.RegisterHandler("SoftHangupRequest", statsdami.NewHandler(statsdclient, statsdami.EventSoftHangupHandler))
-	ami.RegisterHandler("Hangup", statsdami.NewHandler(statsdclient, statsdami.EventHangupHandler))
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGUSR1, syscall.SIGUSR2)
 
-	for {
-		ami.StopKeepAlive()
+	go func() {
+		for {
+			sig := <-sigChan
+			logging.Trace.Printf("received signal: %s\n", sig)
+			switch sig {
+			case os.Interrupt, syscall.SIGTERM:
+				{
+					stop()
+					amiClient.Close()
+				}
+			case syscall.SIGUSR1:
+				{
+					logging.Debug.Println("Pending calls:", statsdami.GetPendingCallsCount())
+					logging.Debug.Println("Pending responses:", amiClient.GetPendingActionsCount())
+				}
+			case syscall.SIGUSR2:
+				{
+					logging.Dump.Println("-----------")
+					ami.Dump(amiClient, logging.Dump)
+					statsdami.Dump(logging.Dump)
+				}
+			}
+		}
+	}()
 
-		if err := ami.Connect(map[string]string{"Events": "call,command"}); err != nil {
+	for !shouldStop() {
+		amiClient.StopKeepAlive()
+
+		if err := amiClient.Connect(map[string]string{"Events": "call,command"}); err != nil {
 			logging.Error.Println(err)
 		} else {
 			logging.Info.Println("Connected to", asteriskAddress)
-			ami.KeepAlive(time.Second * 1)
+			amiClient.KeepAlive(time.Second * 1)
 
-			ami.Run()
+			amiClient.Run()
 			logging.Info.Println("Connection lost")
-			ami.StopKeepAlive()
+			amiClient.StopKeepAlive()
 		}
-
 		// reconnect after 100ms
 		<-time.After(time.Millisecond * 100)
 	}
+	logging.Info.Println("stopped")
 }
 
-func eventDefaultHandler(message *ami.Event) {
+func shouldStop() bool {
+	stopMutex.Lock()
+	defer stopMutex.Unlock()
+
+	return stopValue
+}
+
+func stop() {
+	stopMutex.Lock()
+	defer stopMutex.Unlock()
+
+	stopValue = true
 }
