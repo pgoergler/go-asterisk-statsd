@@ -111,27 +111,11 @@ func EventNewChannelHandler(client *statsd.Statsd,
 	if client == nil {
 		return
 	}
+	NewMeasure(client, "concurrent", tags).IncrementGauge()
+	NewMeasure(client, "calls", tags).IncrementCounter()
 
-	err := client.GaugeDelta(MeasureGauge("concurrent", tags), +1)
-	if err != nil {
-		logging.Error.Println(err)
-	}
-
-	err = client.Incr(Measure("calls", tags), +1)
-	if err != nil {
-		logging.Error.Println(err)
-	}
-
-	err = client.GaugeDelta(MeasureGauge("concurrent", map[string]string{"trunk": "All"}), +1)
-	if err != nil {
-		logging.Error.Println(err)
-	}
-
-	err = client.Incr(Measure("calls", map[string]string{"trunk": "All"}), +1)
-	if err != nil {
-		logging.Error.Println(err)
-	}
-
+	NewMeasure(client, "concurrent", tags).Tag("trunk", "All").IncrementGauge()
+	NewMeasure(client, "calls", tags).Tag("trunk", "All").IncrementCounter()
 }
 
 // EventNewStateHandler handle Call state changed
@@ -178,21 +162,6 @@ func EventHangupHandler(client *statsd.Statsd,
 		return
 	}
 
-	err := client.GaugeDelta(MeasureGauge("concurrent", tags), -1)
-	if err != nil {
-		logging.Error.Println(err)
-	}
-
-	err = client.GaugeDelta(MeasureGauge("concurrent", map[string]string{"trunk": "All"}), -1)
-	if err != nil {
-		logging.Error.Println(err)
-	}
-
-	callTags := make(map[string]string)
-	for k, v := range tags {
-		callTags[k] = v
-	}
-
 	cause := call.HangupCause
 	if cause == "" {
 		cause = "-"
@@ -203,29 +172,33 @@ func EventHangupHandler(client *statsd.Statsd,
 		causeTxt = "-"
 	}
 
-	callTags["cause"] = cause
-	callTags["cause_txt"] = causeTxt
-	callTags["disposition"] = call.Disposition()
+	NewMeasure(client, "concurrent", tags).DecrementGauge()
+	NewMeasure(client, "concurrent", tags).Tag("trunk", "All").DecrementGauge()
 
-	err = client.Timing(Measure("active_duration", callTags), call.ActiveDuration)
-	if err != nil {
-		logging.Error.Println(err)
-	}
+	NewMeasure(client, "active_duration", tags).
+		Tag("cause", cause).
+		Tag("cause_txt", causeTxt).
+		Tag("disposition", call.Disposition()).
+		Timing(call.ActiveDuration)
 
-	err = client.Timing(Measure("total_duration", callTags), call.TotalDuration)
-	if err != nil {
-		logging.Error.Println(err)
-	}
+	NewMeasure(client, "active_duration", tags).
+		Tag("cause", cause).
+		Tag("cause_txt", causeTxt).
+		Tag("disposition", call.Disposition()).
+		Tag("trunk", "All").
+		Timing(call.ActiveDuration)
 
-	callTags["trunk"] = "All"
-	err = client.Timing(Measure("active_duration", callTags), call.ActiveDuration)
-	if err != nil {
-		logging.Error.Println(err)
-	}
+	NewMeasure(client, "total_duration", tags).
+		Tag("cause", cause).
+		Tag("cause_txt", causeTxt).
+		Tag("disposition", call.Disposition()).
+		Timing(call.TotalDuration)
 
-	err = client.Timing(Measure("total_duration", callTags), call.TotalDuration)
-	if err != nil {
-		logging.Error.Println(err)
-	}
+	NewMeasure(client, "total_duration", tags).
+		Tag("cause", cause).
+		Tag("cause_txt", causeTxt).
+		Tag("disposition", call.Disposition()).
+		Tag("trunk", "All").
+		Timing(call.TotalDuration)
 
 }

@@ -90,13 +90,17 @@ func main() {
 			switch sig {
 			case os.Interrupt, syscall.SIGTERM:
 				{
+					logging.Trace.Printf("stop()")
 					stop()
+					logging.Trace.Printf("Closing")
 					amiClient.Close()
+					logging.Trace.Printf("Closed")
 				}
 			case syscall.SIGUSR1:
 				{
 					logging.Debug.Println("Pending calls:", statsdami.GetPendingCallsCount())
 					logging.Debug.Println("Pending responses:", amiClient.GetPendingActionsCount())
+					logging.Debug.Println("Gauges:", statsdami.GetGaugeCount())
 				}
 			case syscall.SIGUSR2:
 				{

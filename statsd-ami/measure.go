@@ -1,7 +1,11 @@
 package statsdami
 
 import (
+	"log"
 	"sync"
+
+	"github.com/pgoergler/go-asterisk-statsd/logging"
+	"github.com/quipo/statsd"
 )
 
 // Measure a proxy object to handle statsd measurements
@@ -12,19 +16,37 @@ type Measure struct {
 	client *statsd.Statsd
 }
 
-// MeasureGauge build statsd aspect from name and tags
-func MeasureGauge(measure string, tags map[string]string) string {
-	aspect := measure
-	for k, v := range tags {
-		aspect += "," + k + "=" + v
-	}
-
-	RegisterGauge(aspect)
-	return aspect
-}
-
 var gaugeMutex = new(sync.RWMutex)
 var gaugesCounter = make(map[string]bool)
+
+// DumpGauges All gauges
+func DumpGauges(logger *log.Logger) {
+	gaugeMutex.Lock()
+	defer gaugeMutex.Unlock()
+	logger.Println(len(calls), " gauge")
+	for k := range gaugesCounter {
+		logger.Printf("%s,", k)
+	}
+	logger.Println("")
+}
+
+//GetGaugeCount return gauge count
+func GetGaugeCount() int {
+	gaugeMutex.Lock()
+	defer gaugeMutex.Unlock()
+	return len(gaugesCounter)
+}
+
+//GetAllGauges return all gauges
+func GetAllGauges() []string {
+	gaugeMutex.Lock()
+	defer gaugeMutex.Unlock()
+	keys := make([]string, 0, len(gaugesCounter))
+	for k := range gaugesCounter {
+		keys = append(keys, k)
+	}
+	return keys
+}
 
 // ResetAllGauges clean gaugesCounter
 func ResetAllGauges() {

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pgoergler/go-asterisk-statsd/logging"
 	"github.com/pgoergler/go-asterisk-statsd/uuid"
 )
 
@@ -352,10 +353,13 @@ func (client *Client) GetPendingActionsCount() int {
 
 // Close the connection to AMI
 func (client *Client) Close() {
+	logging.Trace.Println("logoff")
 	client.Action("Logoff", nil)
+	logging.Trace.Println("locking")
 	client.mutexObject.Lock()
 	defer client.mutexObject.Unlock()
 	(client.connRaw).Close()
+	logging.Trace.Println("closed")
 }
 
 func (client *Client) notifyResponse(response *Response) {
