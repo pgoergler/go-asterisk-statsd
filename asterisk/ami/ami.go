@@ -361,10 +361,16 @@ func (client *Client) Close() {
 func (client *Client) notifyResponse(response *Response) {
 	go func() {
 		client.mutexAsyncAction.RLock()
-		client.responses[response.ID] <- response
-		close(client.responses[response.ID])
-		delete(client.responses, response.ID)
+		chanResponse, found := client.responses[response.ID]
 		client.mutexAsyncAction.RUnlock()
+
+		if found {
+			chanResponse <- response
+			client.mutexAsyncAction.Lock()
+			close(client.responses[response.ID])
+			delete(client.responses, response.ID)
+			client.mutexAsyncAction.Unlock()
+		}
 	}()
 }
 

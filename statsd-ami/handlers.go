@@ -11,7 +11,7 @@ import (
 	"github.com/quipo/statsd"
 )
 
-type statsdEventHandler func(*statsd.StatsdClient, *asterisk.Call, *ami.Event, map[string]string)
+type statsdEventHandler func(*statsd.Statsd, *asterisk.Call, *ami.Event, map[string]string)
 
 var callsMutex = new(sync.RWMutex)
 var calls = make(map[string]*asterisk.Call)
@@ -64,7 +64,7 @@ func mapGetter(params map[string]string) func(string, string) string {
 
 // NewHandler call handler with extra paramters
 //  handler(*statsd.StatsdClient, *asterisk.Call, *ami.Event, map[string]string)
-func NewHandler(client *statsd.StatsdClient, handler statsdEventHandler) func(*ami.Event) {
+func NewHandler(client *statsd.Statsd, handler statsdEventHandler) func(*ami.Event) {
 	return func(message *ami.Event) {
 		get := mapGetter(message.Params)
 
@@ -100,12 +100,12 @@ func NewHandler(client *statsd.StatsdClient, handler statsdEventHandler) func(*a
 	}
 }
 
-func eventDefaultHandler(client *statsd.StatsdClient,
+func eventDefaultHandler(client *statsd.Statsd,
 	call *asterisk.Call, message *ami.Event, tags map[string]string) {
 }
 
 //EventNewChannelHandler handle new call
-func EventNewChannelHandler(client *statsd.StatsdClient,
+func EventNewChannelHandler(client *statsd.Statsd,
 	call *asterisk.Call, message *ami.Event, tags map[string]string) {
 
 	if client == nil {
@@ -135,7 +135,7 @@ func EventNewChannelHandler(client *statsd.StatsdClient,
 }
 
 // EventNewStateHandler handle Call state changed
-func EventNewStateHandler(client *statsd.StatsdClient,
+func EventNewStateHandler(client *statsd.Statsd,
 	call *asterisk.Call, message *ami.Event, tags map[string]string) {
 
 	get := mapGetter(message.Params)
@@ -152,7 +152,7 @@ func EventNewStateHandler(client *statsd.StatsdClient,
 }
 
 // EventNewAccountCodeHandler handle Call AccountCode changed
-func EventNewAccountCodeHandler(client *statsd.StatsdClient,
+func EventNewAccountCodeHandler(client *statsd.Statsd,
 	call *asterisk.Call, message *ami.Event, tags map[string]string) {
 
 	get := mapGetter(message.Params)
@@ -160,7 +160,7 @@ func EventNewAccountCodeHandler(client *statsd.StatsdClient,
 }
 
 // EventSoftHangupHandler handle Call soft hangup
-func EventSoftHangupHandler(client *statsd.StatsdClient,
+func EventSoftHangupHandler(client *statsd.Statsd,
 	call *asterisk.Call, message *ami.Event, tags map[string]string) {
 
 	get := mapGetter(message.Params)
@@ -168,7 +168,7 @@ func EventSoftHangupHandler(client *statsd.StatsdClient,
 }
 
 // EventHangupHandler handle Call soft hangup
-func EventHangupHandler(client *statsd.StatsdClient,
+func EventHangupHandler(client *statsd.Statsd,
 	call *asterisk.Call, message *ami.Event, tags map[string]string) {
 
 	get := mapGetter(message.Params)

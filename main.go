@@ -25,17 +25,11 @@ var stopValue = false
 
 func main() {
 
-	file, err := os.OpenFile("dump.txt", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
-	if err != nil {
-		log.Fatalln("Failed to open dump file:", err)
-	}
-	defer file.Close()
-
+	// logging.Init(logging.Trace, os.Stdout)
 	logging.Init(logging.Debug, os.Stdout)
 	logging.InitWithSyslog(logging.Info, os.Stdout, "asterisk-monitor")
 	logging.InitWithSyslog(logging.Warning, os.Stdout, "asterisk-monitor")
 	logging.InitWithSyslog(logging.Error, os.Stdout, "asterisk-monitor")
-	logging.Init(logging.Dump, file)
 
 	asteriskInfo := flag.String("asterisk", "", "asterisk connection info. format: user:password@host:port")
 	statsdInfo := flag.String("statsd", "", "statsd connection info. format: host:port/prefix")
@@ -48,19 +42,24 @@ func main() {
 		statsdEnabled = false
 	}
 
-	var statsdclient *statsd.StatsdClient
+	var statsdclient *statsd.Statsd
 	if statsdEnabled {
 
 		matches := regexStatsd.FindAllStringSubmatch(*statsdInfo, -1)
 		statsdHost := matches[0][1] + ":" + matches[0][3]
 		statsdPrefix := matches[0][5]
 
-		statsdclient = statsd.NewStatsdClient(statsdHost, statsdPrefix)
-		err := statsdclient.CreateSocket()
-		if nil != err {
-			logging.Error.Println(err)
-			os.Exit(1)
-		}
+		client := statsd.Statsd(statsd.NewStatsdClient(statsdHost, statsdPrefix))
+		statsdclient = &client
+	} else {
+		client := statsd.Statsd(statsd.NoopClient{})
+		statsdclient = &client
+	}
+
+	err := (*statsdclient).CreateSocket()
+	if nil != err {
+		logging.Error.Println(err)
+		os.Exit(1)
 	}
 
 	regexAsterisk, _ := regexp.Compile("^(.*?):(.*?)@(.*?)$")
@@ -101,9 +100,16 @@ func main() {
 				}
 			case syscall.SIGUSR2:
 				{
+					file, err := os.OpenFile("dump.txt", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+					if err != nil {
+						log.Fatalln("Failed to open dump file:", err)
+					}
+					logging.Init(logging.Dump, file)
 					logging.Dump.Println("-----------")
 					ami.Dump(amiClient, logging.Dump)
 					statsdami.Dump(logging.Dump)
+					statsdami.DumpGauges(logging.Dump)
+					file.Close()
 				}
 			}
 		}
