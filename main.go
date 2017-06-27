@@ -18,6 +18,11 @@ import (
 	"github.com/quipo/statsd"
 )
 
+var (
+	Version   string
+  Build string
+)
+
 type eventHandler func(*statsd.StatsdClient, *ami.Event, map[string]string)
 
 var stopMutex = new(sync.RWMutex)
@@ -84,6 +89,8 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGUSR1, syscall.SIGUSR2)
 
 	go func() {
+		logging.Info.Println("Version", Version, "Build:", Build)
+
 		for {
 			sig := <-sigChan
 			logging.Trace.Printf("received signal: %s\n", sig)
