@@ -126,6 +126,8 @@ func EventNewStateHandler(client *statsd.Statsd,
 
 	state := get("Channelstatedesc", "")
 	switch state {
+	case "Busy":
+		call.Busy()
 	case "Ring", "Ringing":
 		call.Ringing()
 	case "Up":

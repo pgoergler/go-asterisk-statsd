@@ -64,6 +64,11 @@ func (c *Call) Ringing() {
 	c.RingingAt = time.Now()
 }
 
+// Busy mark the Call as Busy
+func (c *Call) Busy() {
+	c.HangupCause = "17";
+}
+
 // HangingUp mark the Call as HangingUp
 func (c *Call) HangingUp(cause string) {
 	if c.HangupAt.IsZero() {
